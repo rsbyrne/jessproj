@@ -4,9 +4,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-import os
 import time
 import click
+import math
 
 # perlin noise code from https://stackoverflow.com/questions/42147776/producing-2d-perlin-noise-with-numpy
 def lerp(a,b,x):
@@ -50,7 +50,7 @@ def perlin(x,y,seed=0):
     x2 = lerp(n01,n11,u)
     return lerp(x1,x2,v)
 
-def layered_perlin(x, y, seed=0, n_layers=4, persistence=0.6, lacunarity=2.2, scale=10):
+def layered_perlin(x, y, seed=0, n_layers=4, persistence=0.6, lacunarity=2.2, scale=5):
     result = 0
     amplitude = 1
     frequency = 1
@@ -91,6 +91,8 @@ class Chunk:
         size = Chunk.CHUNK_SIZE
         self.matter = {}
         
+#         self.matter[(0, 0)] = Star(0, 0)
+        
         # generate noise for this chunk
         lin_x = np.linspace(x, x + size, size, endpoint=False)
         lin_y = np.linspace(y, y + size, size, endpoint=False)
@@ -100,12 +102,16 @@ class Chunk:
         # loop through tiles to generate stars
         for row in range(size):
             for col in range(size):
-                if noise[row, col] > 0.2: # noise is in range -1 to 1
-                    if (random.random() < 0.2):
-                        self.matter[(row, col)] = Star(row, col)
+#                 if noise[row, col] > 0.2: # noise is in range -1 to 1
+#                     if (random.random() < 0.2):
+#                         self.matter[(row, col)] = Star(row, col) 
+                if (random.random() < (noise[row, col] + 1)/2 - 0.5):
+                    self.matter[(row, col)] = Star(row, col)
     
-    def world_to_chunk_pos(x, y):
-        return x % CHUNK_SIZE, y % CHUNK_SIZE
+    def get_nearest_chunk_pos(x, y):
+        chunk_x = math.floor( x / Chunk.CHUNK_SIZE ) * Chunk.CHUNK_SIZE
+        chunk_y = math.floor( y / Chunk.CHUNK_SIZE ) * Chunk.CHUNK_SIZE
+        return chunk_x, chunk_y
     
         
 class Canvas:
@@ -121,15 +127,16 @@ class Canvas:
         curr_y = self.curr_y
         self.visible_chunk_coords = []
         
-        temp_x = curr_x - curr_x % Chunk.CHUNK_SIZE
-        temp_y = curr_y - curr_y % Chunk.CHUNK_SIZE
+        # get top-leftmost chunk world position on canvas
+        temp_x, temp_y = Chunk.get_nearest_chunk_pos(curr_x, curr_y)
+        save_y = temp_y
         
         while temp_x < curr_x + self.size:
             while temp_y < curr_y + self.size:
                 self.visible_chunk_coords.append((temp_x, temp_y))
                 temp_y += Chunk.CHUNK_SIZE
             temp_x += Chunk.CHUNK_SIZE
-            temp_y = curr_y - curr_y % Chunk.CHUNK_SIZE
+            temp_y = save_y
             
     def draw_chunk_on_canvas(self, canvas, chunk):
         # loop over every tile in chunk
@@ -147,13 +154,13 @@ class Canvas:
                         canvas[canvasx, canvasy] = '   '
                         
     def clear_screen(self):
-#         os.system('cls||clear')
         click.clear()
                         
     def world_to_canvas_pos(self, x, y):
-        return x % self.size, y % self.size
+#         print(f"converted {x},{y} to {x - self.curr_x},{y - self.curr_y}")
+        return x - self.curr_x, y - self.curr_y
                     
-    def is_within_bounds(self, x, y): # starts from top left?
+    def is_within_bounds(self, x, y): # coords start from top left?
         left_bound = self.curr_x
         right_bound = self.curr_x + self.size
         top_bound = self.curr_y
@@ -208,6 +215,8 @@ class Game:
     def run_game(self):
         while True:
             self.render()
+            print(self.canvas.curr_x)
+            print(self.canvas.curr_y)
             
             click.echo("Enter command: ", nl=False)
             c = click.getchar()
@@ -215,16 +224,16 @@ class Game:
             
             if c == UP_ARROW_KEY:
                 click.echo('Going up ^')
-                self.canvas.curr_y -= 1
+                self.canvas.curr_x -= 1
             elif c == DOWN_ARROW_KEY:
                 click.echo('Going down v')
-                self.canvas.curr_y += 1
+                self.canvas.curr_x += 1
             elif c == LEFT_ARROW_KEY:
                 click.echo('Going left <-')
-                self.canvas.curr_x -= 1
+                self.canvas.curr_y -= 1
             elif c == RIGHT_ARROW_KEY:
                 click.echo('Going right ->')
-                self.canvas.curr_x += 1
+                self.canvas.curr_y += 1
                 
             elif c == QUIT_KEY:
                 click.echo('Exiting...')
